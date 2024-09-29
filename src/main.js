@@ -23,7 +23,7 @@ refs.button.addEventListener('click', handleButtonShowMore);
 let query = '';
 let page = 1;
 
-function handleSubmit(event) {
+async function handleSubmit(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const inputValue = form.elements.state.value.trim();
@@ -43,29 +43,31 @@ function handleSubmit(event) {
   }
   refs.loader.classList.add('is-visible');
 
-  fetchImages(query, page)
-    .then(({ hits }) => {
-      if (hits.length === 0) {
-        iziToast.error({
-          message:
-            'Sorry, there are no images matching your search query. Please try again!',
-          position: 'bottomRight',
-        });
-        return;
-      }
-      const markup = handleSuccess(hits);
-      refs.gallery.insertAdjacentHTML('beforeend', markup);
+  try {
+    const { hits } = await fetchImages(query, page);
 
-      library.refresh();
-      refs.button.classList.add('is-visible');
-    })
-    .catch(error => {
-      console.log(error.message);
-    })
-    .finally(() => {
-      refs.loader.classList.remove('is-visible');
-      refs.form.reset();
-    });
+    if (hits.length === 0) {
+      iziToast.error({
+        message:
+          'Sorry, there are no images matching your search query. Please try again!',
+        position: 'bottomRight',
+      });
+      return;
+    }
+
+    hits.length < per_page
+      ? refs.button.classList.remove('is-visible')
+      : refs.button.classList.add('is-visible');
+
+    const markup = handleSuccess(hits);
+    refs.gallery.insertAdjacentHTML('beforeend', markup);
+    library.refresh();
+  } catch (error) {
+    console.log(error.message);
+  } finally {
+    refs.loader.classList.remove('is-visible');
+    refs.form.reset();
+  }
 }
 
 async function handleButtonShowMore() {
@@ -76,7 +78,11 @@ async function handleButtonShowMore() {
     refs.button.classList.remove('is-visible');
     const { hits, totalHits } = await fetchImages(query, page);
 
-    if (page > Math.ceil(totalHits / per_page)) {
+    const markup = handleSuccess(hits);
+    refs.gallery.insertAdjacentHTML('beforeend', markup);
+    library.refresh();
+    handlePageScroll();
+    if (page > Math.ceil(totalHits / per_page) - 1) {
       refs.button.classList.remove('is-visible');
       iziToast.error({
         message: "We're sorry, but you've reached the end of search results.",
@@ -84,11 +90,6 @@ async function handleButtonShowMore() {
       });
       return;
     }
-
-    const markup = handleSuccess(hits);
-    refs.gallery.insertAdjacentHTML('beforeend', markup);
-    library.refresh();
-    handlePageScroll();
     refs.button.classList.add('is-visible');
   } catch (error) {
     console.log(error.message);
